@@ -1,6 +1,8 @@
 from math import sqrt, floor
 import numpy as np
 import requests
+from random import random
+import time
 
 from kiwi import kiwi, starting_x, starting_y
 from creds import USERNAME, PASSWORD
@@ -32,7 +34,7 @@ def hex_to_pixel(hex_value):
         return np.zeros((3))
 
 
-def update_pixel(pixel_id, color):
+def get_token():
     login_response = requests.post(
         'https://api.fouloscopie.com/auth/login',
         json={'email': USERNAME, 'password': PASSWORD}).json()
@@ -42,59 +44,76 @@ def update_pixel(pixel_id, color):
         'https://admin.fouloscopie.com/users/me',
         headers={'Authorization': f'Bearer {access_token}'}).json()
     fouloscopie_token = user_response['data']['token']
-    print(fouloscopie_token)
+    return fouloscopie_token
 
+
+def update_pixel(pixel_id, color, fouloscopie_token):
     print(requests.put(
         'https://api-flag.fouloscopie.com/pixel',
         json={'hexColor': color, 'pixelId': pixel_id},
         headers={'Authorization': fouloscopie_token}).json())
 
 
-pixels, pixels_id = get_pixels_with_id()
-totalDiag = get_diag(pixels)
-full_flag = np.zeros((2 * totalDiag, totalDiag, 3), dtype=np.uint8)
-full_flag_pixel_ids = np.zeros((2 * totalDiag, totalDiag), dtype=object)
+def get_full_flag_with_id():
+    pixels, pixels_id = get_pixels_with_id()
 
-full_flag[0, 0] = hex_to_pixel(pixels[0])
-full_flag_pixel_ids[0, 0] = pixels_id[0]
-full_flag[1, 0] = hex_to_pixel(pixels[1])
-full_flag_pixel_ids[1, 0] = pixels_id[1]
-currentPix = 2
+    totalDiag = get_diag(pixels)
+    full_flag = np.zeros((2 * totalDiag, totalDiag, 3), dtype=np.uint8)
+    full_flag_pixel_ids = np.zeros((2 * totalDiag, totalDiag), dtype=object)
 
-for diag in range(1, totalDiag):
-    for x in range(2 * diag):
-        full_flag[x, diag] = hex_to_pixel(pixels[currentPix])
-        full_flag_pixel_ids[x, diag] = pixels_id[currentPix]
-        currentPix += 1
+    full_flag[0, 0] = hex_to_pixel(pixels[0])
+    full_flag_pixel_ids[0, 0] = pixels_id[0]
+    full_flag[1, 0] = hex_to_pixel(pixels[1])
+    full_flag_pixel_ids[1, 0] = pixels_id[1]
+    currentPix = 2
 
-    for y in range(diag + 1):
-        full_flag[2 * diag, y] = hex_to_pixel(pixels[currentPix])
-        full_flag_pixel_ids[2 * diag, y] = pixels_id[currentPix]
-        currentPix += 1
+    for diag in range(1, totalDiag):
+        for x in range(2 * diag):
+            full_flag[x, diag] = hex_to_pixel(pixels[currentPix])
+            full_flag_pixel_ids[x, diag] = pixels_id[currentPix]
+            currentPix += 1
 
-    for y in range(diag + 1):
-        full_flag[2 * diag + 1, y] = hex_to_pixel(pixels[currentPix])
-        full_flag_pixel_ids[2 * diag + 1, y] = pixels_id[currentPix]
-        currentPix += 1
+        for y in range(diag + 1):
+            full_flag[2 * diag, y] = hex_to_pixel(pixels[currentPix])
+            full_flag_pixel_ids[2 * diag, y] = pixels_id[currentPix]
+            currentPix += 1
+
+        for y in range(diag + 1):
+            full_flag[2 * diag + 1, y] = hex_to_pixel(pixels[currentPix])
+            full_flag_pixel_ids[2 * diag + 1, y] = pixels_id[currentPix]
+            currentPix += 1
+
+    return full_flag, full_flag_pixel_ids
 
 
-clipped_flag = full_flag[
-    starting_x:starting_x + len(kiwi),
-    starting_y:starting_y + len(kiwi[0])]
+if __name__ == '__main__':
+    token = get_token()
 
-diff = np.zeros((len(kiwi), len(kiwi[0])), dtype=np.uint32)
+    time_to_wait = 0
 
-for x, line in enumerate(kiwi):
-    for y, pixel in enumerate(line):
-        if pixel != None:
-            diff[x, y] = sum(
-                abs(clipped_flag[x, y] - hex_to_pixel(pixel))) // 3
+    while True:
+        print('Next execution in {0:.2f}s'.format(time_to_wait))
+        time.sleep(time_to_wait)
+        full_flag, full_flag_pixel_ids = get_full_flag_with_id()
 
-biggest_diff = np.where(diff == np.amax(diff))
-pixel_to_change = full_flag_pixel_ids[
-    starting_x + biggest_diff[0][0],
-    starting_y + biggest_diff[1][0]]
-new_color = kiwi[biggest_diff[0][0]][biggest_diff[1][0]]
-print(pixel_to_change, new_color)
+        clipped_flag = full_flag[
+            starting_x:starting_x + len(kiwi),
+            starting_y:starting_y + len(kiwi[0])]
 
-update_pixel(pixel_to_change, new_color)
+        diff = np.zeros((len(kiwi), len(kiwi[0])), dtype=np.uint32)
+        for x, line in enumerate(kiwi):
+            for y, pixel in enumerate(line):
+                if pixel != None:
+                    diff[x, y] = sum(
+                        abs(clipped_flag[x, y] - hex_to_pixel(pixel))) // 3
+
+        biggest_diff = np.where(diff == np.amax(diff))
+        pixel_to_change = full_flag_pixel_ids[
+            starting_x + biggest_diff[0][0],
+            starting_y + biggest_diff[1][0]]
+        new_color = kiwi[biggest_diff[0][0]][biggest_diff[1][0]]
+        print(pixel_to_change, new_color)
+
+        update_pixel(pixel_to_change, new_color, token)
+
+        time_to_wait = 120 + 30 * random()
