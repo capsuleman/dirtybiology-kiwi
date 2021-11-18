@@ -7,8 +7,7 @@ from datetime import datetime
 import threading
 
 from kiwi import kiwi, starting_x, starting_y
-from creds import USERNAME, PASSWORD
-
+from creds import ACCOUNTS
 
 GET_FLAG_URL = 'https://api-flag.fouloscopie.com/flag'
 FOULOSCOPIE_LOGIN_URL = 'https://api.fouloscopie.com/auth/login'
@@ -41,10 +40,10 @@ def hex_to_pixel(hex_value):
         return np.zeros((3))
 
 
-def get_token():
+def get_token(email, password):
     login_response = requests.post(
         FOULOSCOPIE_LOGIN_URL,
-        json={'email': USERNAME, 'password': PASSWORD}).json()
+        json={'email': email, 'password': password}).json()
     access_token = login_response['access_token']
 
     user_response = requests.get(
@@ -141,14 +140,14 @@ def update_flag_thread_function(full_flag, full_flag_pixel_ids):
         last_update_ts = get_datetime()
 
 
-def main_thread_function(full_flag, full_flag_pixel_ids):
-    print('[MAIN] Starting thread')
+def main_thread_function(full_flag, full_flag_pixel_ids, email, password, index):
+    print(f'[MAIN {index}] Starting thread')
 
-    token = get_token()
+    token = get_token(email, password)
     time_to_wait = 0
 
     while True:
-        print('[MAIN] Next execution in {0:.2f}s'.format(time_to_wait))
+        print('[MAIN {}] Next execution in {:.2f}s'.format(index, time_to_wait))
         sleep(time_to_wait)
 
         clipped_flag = full_flag[
@@ -170,9 +169,9 @@ def main_thread_function(full_flag, full_flag_pixel_ids):
             starting_y + coord_y]
         new_color = kiwi[coord_x][coord_y]
 
-        update_pixel(pixel_to_change, new_color, token)
         full_flag[coord_x, coord_y] = hex_to_pixel(new_color)
-        print(f'[MAIN] Updated {pixel_to_change} with {new_color}')
+        update_pixel(pixel_to_change, new_color, token)
+        print(f'[MAIN {index}] Updated {pixel_to_change} with {new_color}')
 
         time_to_wait = 120 + 30 * random()
 
@@ -180,20 +179,26 @@ def main_thread_function(full_flag, full_flag_pixel_ids):
 if __name__ == '__main__':
     full_flag, full_flag_pixel_ids = get_full_flag_with_id()
 
-    main_thread = threading.Thread(
-        target=main_thread_function,
-        args=(full_flag, full_flag_pixel_ids),
-        daemon=True
-    )
+    main_threads = []
+
+    for index, account in enumerate(ACCOUNTS):
+        new_main_thread = threading.Thread(
+            target=main_thread_function,
+            args=(full_flag, full_flag_pixel_ids,
+                  account['email'], account['password'], index),
+            daemon=True
+        )
+        main_threads.append(new_main_thread)
 
     update_thread = threading.Thread(
         target=update_flag_thread_function,
         args=(full_flag, full_flag_pixel_ids),
         daemon=True
     )
-
-    main_thread.start()
+    for main_thread in main_threads:
+        main_thread.start()
     update_thread.start()
 
+    for main_thread in main_threads:
+        main_thread.join()
     update_thread.join()
-    main_thread.join()

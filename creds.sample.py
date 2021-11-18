@@ -1,2 +1,6 @@
-USERNAME = 'grrr'
-PASSWORD = 'grrr'
+ACCOUNTS = [
+    {
+        'email': 'grrr',
+        'password': 'grrr',
+    },
+]
