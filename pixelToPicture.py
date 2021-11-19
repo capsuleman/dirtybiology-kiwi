@@ -5,9 +5,12 @@ from random import random
 from time import sleep
 from datetime import datetime
 import threading
+from PIL import Image
 
 from kiwi import kiwi, starting_x, starting_y
 from creds import ACCOUNTS
+
+IS_TESTING = False
 
 GET_FLAG_URL = 'https://api-flag.fouloscopie.com/flag'
 FOULOSCOPIE_LOGIN_URL = 'https://api.fouloscopie.com/auth/login'
@@ -177,8 +180,17 @@ def main_thread_function(full_flag, full_flag_pixel_ids, email, password, index)
                   starting_y + coord_y] = hex_to_pixel(new_color)
         sem.release()
 
-        time_to_wait = 120 + 30 * random()
-        update_pixel(pixel_to_change, new_color, token)
+        if IS_TESTING:
+            time_to_wait = 0
+            if new_color == None:
+                if index == 0:
+                    Image.fromarray(np.transpose(
+                        full_flag, (1, 0, 2))).show()
+                return
+        else:
+            update_pixel(pixel_to_change, new_color, token)
+            time_to_wait = 120 + 30 * random()
+
         print(
             f'[MAIN {index}] Updated ({starting_x + coord_x}, {starting_y + coord_y}) with {new_color}')
 
