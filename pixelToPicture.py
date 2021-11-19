@@ -140,6 +140,9 @@ def update_flag_thread_function(full_flag, full_flag_pixel_ids):
         last_update_ts = get_datetime()
 
 
+sem = threading.Semaphore()
+
+
 def main_thread_function(full_flag, full_flag_pixel_ids, email, password, index):
     print(f'[MAIN {index}] Starting thread')
 
@@ -150,6 +153,7 @@ def main_thread_function(full_flag, full_flag_pixel_ids, email, password, index)
         print('[MAIN {}] Next execution in {:.2f}s'.format(index, time_to_wait))
         sleep(time_to_wait)
 
+        sem.acquire()
         clipped_flag = full_flag[
             starting_x:starting_x + len(kiwi),
             starting_y:starting_y + len(kiwi[0])]
@@ -168,6 +172,7 @@ def main_thread_function(full_flag, full_flag_pixel_ids, email, password, index)
             starting_x + coord_x,
             starting_y + coord_y]
         new_color = kiwi[coord_x][coord_y]
+        sem.release()
 
         full_flag[coord_x, coord_y] = hex_to_pixel(new_color)
         update_pixel(pixel_to_change, new_color, token)
