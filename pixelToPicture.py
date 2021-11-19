@@ -155,12 +155,12 @@ def main_thread_function(full_flag, full_flag_pixel_ids, email, password, index)
 
         sem.acquire()
         clipped_flag = full_flag[
-            starting_x:starting_x + len(kiwi),
-            starting_y:starting_y + len(kiwi[0])]
+            starting_x:starting_x + len(kiwi[0]),
+            starting_y:starting_y + len(kiwi)]
 
-        diff = np.zeros((len(kiwi), len(kiwi[0])), dtype=np.uint32)
-        for x, line in enumerate(kiwi):
-            for y, pixel in enumerate(line):
+        diff = np.zeros((len(kiwi[0]), len(kiwi)), dtype=np.uint32)
+        for y, line in enumerate(kiwi):
+            for x, pixel in enumerate(line):
                 if pixel != None:
                     diff[x, y] = sum(
                         abs(clipped_flag[x, y] - hex_to_pixel(pixel))) // 3
@@ -171,14 +171,16 @@ def main_thread_function(full_flag, full_flag_pixel_ids, email, password, index)
         pixel_to_change = full_flag_pixel_ids[
             starting_x + coord_x,
             starting_y + coord_y]
-        new_color = kiwi[coord_x][coord_y]
+        new_color = kiwi[coord_y][coord_x]
+
+        full_flag[starting_x + coord_x,
+                  starting_y + coord_y] = hex_to_pixel(new_color)
         sem.release()
 
-        full_flag[coord_x, coord_y] = hex_to_pixel(new_color)
-        update_pixel(pixel_to_change, new_color, token)
-        print(f'[MAIN {index}] Updated {pixel_to_change} with {new_color}')
-
         time_to_wait = 120 + 30 * random()
+        update_pixel(pixel_to_change, new_color, token)
+        print(
+            f'[MAIN {index}] Updated ({starting_x + coord_x}, {starting_y + coord_y}) with {new_color}')
 
 
 if __name__ == '__main__':
